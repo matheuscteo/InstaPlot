@@ -21,22 +21,69 @@ class MainWindow(QtWidgets.QMainWindow):
 
         layout = QtWidgets.QVBoxLayout()
 
-        UpdateButton = QtWidgets.QPushButton('Update',self)
-        UpdateButton.clicked.connect(self.update)
+        UpdateButton = QtWidgets.QPushButton('Plot',self)
+        UpdateButton.clicked.connect(self.plot_current)
 
         self.canvas = MplCanvas(self)
-        self.data = Data(testing=True)
-        self.canvas.dataplot(self.data)
-
+        self.data = Data()
+        #self.canvas.dataplot(self.data)
         layout.addWidget(self.canvas)
+
+        self.data.grab_db_info()
+        self.set_combobox_id()
+
+        layout_combobox = QtWidgets.QHBoxLayout()
+
+        layout_combobox_id = QtWidgets.QVBoxLayout()
+        layout_combobox_id.setAlignment(QtCore.Qt.AlignCenter)
+        layout_combobox_id.addWidget(QtWidgets.QLabel('Data ID'))
+        layout_combobox_id.addWidget(self.combobox_id)
+
+        self.set_combobox_axes()
+
+        layout_combobox_axes = QtWidgets.QVBoxLayout()
+        layout_combobox_axes.addWidget(self.combobox_ax1)
+        layout_combobox_axes.addWidget(self.combobox_ax2)
+
+        layout_combobox.addLayout(layout_combobox_id)
+        layout_combobox.addLayout(layout_combobox_axes)
+
+        layout.addLayout(layout_combobox)
+
         layout.addWidget(UpdateButton)
 
         self.container_plot =QtWidgets.QWidget()
         self.container_plot.setLayout(layout)
         #self.data.create_db()
-        self.data.grab_db_info()
 
         self.setCentralWidget(self.container_plot)
+
+    def set_combobox_axes(self):
+
+        self.combobox_ax1=QtWidgets.QComboBox(self)
+        self.combobox_ax1.addItems(self.data.cols)
+        self.combobox_ax1.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
+
+        self.combobox_ax2=QtWidgets.QComboBox(self)
+        self.combobox_ax2.addItems(self.data.cols)
+        self.combobox_ax2.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
+
+    def set_combobox_id(self):
+
+        self.combobox_id=QtWidgets.QComboBox(self)
+        self.combobox_id.addItems([str(id) for id in self.data.ids])
+        self.combobox_id.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
+
+    def plot_current(self):
+
+        id = self.combobox_id.currentText()
+        X = self.combobox_ax1.currentText()
+        Y = self.combobox_ax2.currentText()
+
+        X_data=self.data.grab_data(id,X)
+        Y_data=self.data.grab_data(id,Y)
+
+        self.canvas.dataplot(X_data,Y_data)
 
     def update(self):
 
@@ -60,7 +107,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 class Data():
 
-    def __init__(self,testing=True,db_path='./database.db'):
+    def __init__(self,db_path='./database.db'):
 
         try:
             self.con = sqlite3.connect(db_path)
@@ -68,10 +115,6 @@ class Data():
         except Error as e:
             print(e)
             stop
-
-        if testing:
-            self.x=np.linspace(0,10,100)
-            self.y=np.sin(self.x)
 
     def grab_db_info(self):
 
@@ -87,6 +130,12 @@ class Data():
         self.ids=ids
         self.cols=cols
 
+    def grab_data(self,id,ax):
+
+        self.cur.execute("SELECT {} FROM DATA WHERE id is {}".format(ax,id))
+        ax_data=self.cur.fetchall()
+        ax_data=json.loads(ax_data[0][0])
+        return ax_data
 
     def create_db(self):
 
@@ -102,10 +151,6 @@ class Data():
         self.con.commit()
 
 
-    def data_update(self):
-        self.y=self.y*0
-
-
 class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         fig = Figure(figsize=(width,height), dpi=dpi)
@@ -113,8 +158,10 @@ class MplCanvas(FigureCanvasQTAgg):
         super(MplCanvas, self).__init__(fig)
 
 
-    def dataplot(self,data):
-        self.ax.plot(data.x,data.y)
+    def dataplot(self,X_data,Y_data):
+        self.ax.cla()
+        self.ax.plot(X_data,Y_data)
+        self.draw()
 
 
 def main():
